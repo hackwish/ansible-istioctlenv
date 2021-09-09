@@ -1,0 +1,94 @@
+---
+# tasks file for ansible-istioctlenv
+- name: Install git
+  package: 
+    name: "git"
+
+- name: check if istioctlenv exists
+  stat: 
+    path: /opt/istioctlenv/bin/istioctlenv
+  register: istioctlenv_exists
+
+- name: Create istioctlenv directory
+  file: path=/opt/istioctlenv state=directory mode="a+rw"
+  when: istioctlenv_exists.stat.exists == False
+
+- name: Get istioctlenv
+  ansible.builtin.git:
+    repo: 'https://github.com/kirecek/istioctlenv.git'
+    dest: /opt/istioctlenv
+
+- name: Verify istioctlenv exists
+  stat: path=/opt/istioctlenv/bin/istioctlenv
+  register: istioctlenv_stat
+
+- name: Configure istioctlenv on system bin.
+  file:
+    src: "/opt/istioctlenv/bin/istioctlenv"
+    dest: "/usr/bin/istioctlenv"
+    state: link
+  when: istioctlenv_stat.stat.exists
+
+- name: Configure istioctlenv on system sbin.
+  file:
+    src: "/opt/istioctlenv/bin/istioctlenv"
+    dest: "/usr/sbin/istioctlenv"
+    state: link
+  when: istioctlenv_stat.stat.exists
+
+# Customize Per existing user
+- name : list users to apply istioctlenv
+  shell: |
+    getent passwd | awk -F: '$3 > 999 {print $1}'
+  register: users
+
+- debug:
+    var: users
+    verbosity: 2
+
+- name: Create user bin directory
+  file: path=/home/{{ item }}/.local/bin/ state=directory mode="a+rw"
+  when: istioctlenv_stat.stat.exists
+  with_items: "{{ users.stdout_lines }}"
+
+- name: Configure istioctlenv on user bin.
+  file:
+    src: "/opt/istioctlenv/bin/istioctlenv"
+    dest: "/home/{{ item }}/.local/bin/istioctlenv"
+    state: link
+  with_items: "{{ users.stdout_lines }}"
+  when: istioctlenv_stat.stat.exists
+
+- name: update istioctlenv on users bashrc
+  lineinfile:
+    dest: /home/{{ item }}/.bashrc
+    state: present
+    line: 'export PATH="/opt/istioctlenv/bin/:$PATH"'
+  with_items: "{{ users.stdout_lines }}"
+  ignore_errors: true
+
+- name: update istioctlenv on skel bashrc
+  lineinfile:
+    dest: /etc/skel/.bashrc
+    state: present
+    line: 'export PATH="/opt/istioctlenv/bin/:$PATH"'
+
+# Check status
+- shell: bash -ilc 'which istioctlenv'
+  register: which_istioctlenv
+  failed_when: false
+  changed_when: false
+
+- debug:
+    var:  which_istioctlenv.stdout
+    verbosity: 2
+
+- command: istioctlenv -v
+  register: result_istioctlenv
+  failed_when: false
+  changed_when: false
+
+- debug:
+    var: result_istioctlenv.stdout
+    verbosity: 2
+  
