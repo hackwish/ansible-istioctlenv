@@ -53,8 +53,16 @@
 
 - name: Configure istioctlenv on user bin.
   file:
-    src: "/opt/istioctlenv/bin/*"
-    dest: "/home/{{ item }}/.local/bin"
+    src: "/opt/istioctlenv/bin/istioctlenv"
+    dest: "/home/{{ item }}/.local/bin/istioctlenv"
+    state: link
+  with_items: "{{ users.stdout_lines }}"
+  when: istioctlenv_stat.stat.exists
+
+- name: Configure istioctl on user bin.
+  file:
+    src: "/opt/istioctlenv/bin/istioctl"
+    dest: "/home/{{ item }}/.local/bin/istioctl"
     state: link
   with_items: "{{ users.stdout_lines }}"
   when: istioctlenv_stat.stat.exists
